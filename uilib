@@ -1,6 +1,4 @@
 -- SimpleUI.lua - Completely undetectable UI library
--- No metatable hooks, no getrawmetatable, no setreadonly
-
 local SimpleUI = {}
 SimpleUI.__index = SimpleUI
 
@@ -32,8 +30,8 @@ function SimpleUI:CreateWindow(settings)
     
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = randomName()
-    MainFrame.Size = UDim2.new(0, 450, 0, 350)
-    MainFrame.Position = UDim2.new(0.5, -225, 0.5, -175)
+    MainFrame.Size = UDim2.new(0, 450, 0, 400)
+    MainFrame.Position = UDim2.new(0.5, -225, 0.5, -200)
     MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     MainFrame.BackgroundTransparency = 0.05
     MainFrame.BorderSizePixel = 0
@@ -101,10 +99,6 @@ function SimpleUI:CreateWindow(settings)
     TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     TabContainer.BorderSizePixel = 0
     TabContainer.Parent = MainFrame
-    
-    local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 0)
-    TabCorner.Parent = TabContainer
     
     local TabLayout = Instance.new("UIListLayout")
     TabLayout.Padding = UDim.new(0, 2)
@@ -474,7 +468,8 @@ function SimpleUI:CreateWindow(settings)
                     local percent = (currentVal - minVal) / (maxVal - minVal)
                     Fill.Size = UDim2.new(percent, 0, 1, 0)
                     Knob.Position = UDim2.new(percent, -6, 0.5, -6)
-                    ValueLabel.Text = s.round_number and tostring(math.floor(currentVal)) or tostring(math.floor(currentVal * 10) / 10)
+                    local displayVal = s.round_number and math.floor(currentVal) or (math.floor(currentVal * 10) / 10)
+                    ValueLabel.Text = tostring(displayVal)
                     if s.callback then s.callback(currentVal) end
                 end
                 
