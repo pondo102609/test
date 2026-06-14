@@ -3,7 +3,14 @@ local ts = cloneref(game:GetService("TweenService"))
 local cg = cloneref(game:GetService("CoreGui"))
 local ui = cloneref(game:GetService("UserInputService"))
 
-function module:win(title)
+local dragging = false
+local dragInput = nil
+local dragStart = nil
+local framePos = nil
+
+function module:win(title, openKey)
+    openKey = openKey or Enum.KeyCode.RightControl
+    
     local window = game:GetObjects("rbxassetid://96576283085736")[1]
     local elements = game:GetObjects("rbxassetid://83539751566719")[1]
 
@@ -21,6 +28,7 @@ function module:win(title)
     local miniBtn = topbar.btns.Minimize
 
     local toggleCon = nil
+    local isVisible = true
 
     local function fadebtn(btn, isIn)
         ts:Create(
@@ -59,6 +67,7 @@ function module:win(title)
         ):Play()
 
         window.Frame.Interactable = isIn and true or false
+        isVisible = isIn
     end
 
     local function fadetopbar(isIn)
@@ -82,7 +91,7 @@ function module:win(title)
     closeBtn.MouseButton1Click:Connect(function()
         window:Destroy()
         elements:Destroy()
-        toggleCon:Disconnect()
+        if toggleCon then toggleCon:Disconnect() end
     end)
 
     miniBtn.MouseButton1Click:Connect(function()
@@ -90,20 +99,21 @@ function module:win(title)
     end)
 
     toggleCon = ui.InputBegan:Connect(function(keyc, gamep)
-        if not gamep and keyc.KeyCode == Enum.KeyCode.K then
-            togglewin(not window.Frame.Interactable)
+        if not gamep and keyc.KeyCode == openKey then
+            togglewin(not isVisible)
         end
     end)
 
-    local sections = {}
-    local curSelected = nil
+    local function updateDrag(input)
+        local delta = input.Position - dragStart
+        local newPos = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
+        
+        ts:Create(window.Frame, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Position = newPos
+        }):Play()
+    end
 
-    local dragging = false
-    local dragInput = nil
-    local dragStart = nil
-    local framePos = nil
-
-    topbar.InputBegan:Connect(function(input)
+    window.Frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
@@ -119,21 +129,15 @@ function module:win(title)
         end
     end)
 
-    local function updateDrag(input)
-        local delta = input.Position - dragStart
-        local newPos = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
-        
-        ts:Create(window.Frame, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Position = newPos
-        }):Play()
-    end
-
-    topbar.InputChanged:Connect(function(input)
+    ui.InputChanged:Connect(function(input)
         if not dragging then return end
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             updateDrag(input)
         end
     end)
+
+    local sections = {}
+    local curSelected = nil
 
     local function toggletab(tab, isIn)
         ts:Create(
@@ -347,6 +351,38 @@ function module:win(title)
                         pcall(cb, lastval)
                     end
                 end
+            end)
+        end
+        
+        function contents:dropdown(title, options, default, cb)
+            local newDropdown = elements.DropdownElement:Clone()
+            newDropdown.title.Text = title
+            newDropdown.Parent = newSect.sectioncontainer
+            
+            local dropdownBtn = newDropdown.btn
+            local dropdownMenu = newDropdown.menu
+            local optionContainer = dropdownMenu.options
+            
+            dropdownBtn.Text = default
+            
+            local isOpen = false
+            
+            for _, opt in pairs(options) do
+                local optBtn = elements.DropdownOption:Clone()
+                optBtn.Text = opt
+                optBtn.Parent = optionContainer
+                
+                optBtn.MouseButton1Click:Connect(function()
+                    dropdownBtn.Text = opt
+                    cb(opt)
+                    dropdownMenu.Visible = false
+                    isOpen = false
+                end)
+            end
+            
+            dropdownBtn.MouseButton1Click:Connect(function()
+                isOpen = not isOpen
+                dropdownMenu.Visible = isOpen
             end)
         end
 
