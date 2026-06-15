@@ -100,7 +100,7 @@ function module:win(title)
     closeBtn.MouseButton1Click:Connect(function()
         window:Destroy()
         elements:Destroy()
-        toggleCon:Disconnect()
+        if toggleCon then toggleCon:Disconnect() end
     end)
 
     miniBtn.MouseButton1Click:Connect(function()
@@ -367,10 +367,530 @@ function module:win(title)
             end)
         end
 
+        -- NEW: Dropdown Menu
+        function contents:dropdown(title, options, default, cb)
+            local newDropdown = elements.DropdownElement or createDropdownElement(elements)
+            if not newDropdown then
+                -- Fallback creation if element doesn't exist in your assets
+                newDropdown = createDropdownElement()
+            end
+            
+            newDropdown.frame.lbl.Text = title
+            newDropdown.Parent = newSect.sectioncontainer
+            
+            local dropdownBtn = newDropdown.btn
+            local dropdownList = newDropdown.dropdownlist
+            local selectedText = newDropdown.selected
+            
+            local isOpen = false
+            local currentOption = default or options[1]
+            selectedText.Text = currentOption
+            
+            -- Fade effects for dropdown button
+            dropdownBtn.MouseEnter:Connect(function() fadeelement(dropdownBtn, true) end)
+            dropdownBtn.MouseLeave:Connect(function() fadeelement(dropdownBtn, false) end)
+            
+            -- Clear existing options
+            for _, child in ipairs(dropdownList:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+            
+            -- Create dropdown options
+            local optionButtons = {}
+            for i, option in ipairs(options) do
+                local optBtn = elements.DropdownOption:Clone()
+                optBtn.Text = option
+                optBtn.Parent = dropdownList
+                optBtn.Visible = false
+                optBtn.BackgroundTransparency = 0.8
+                
+                optBtn.MouseEnter:Connect(function()
+                    ts:Create(optBtn, TweenInfo.new(0.15), {BackgroundTransparency = 0.7}):Play()
+                end)
+                
+                optBtn.MouseLeave:Connect(function()
+                    ts:Create(optBtn, TweenInfo.new(0.15), {BackgroundTransparency = 0.8}):Play()
+                end)
+                
+                optBtn.MouseButton1Click:Connect(function()
+                    currentOption = option
+                    selectedText.Text = currentOption
+                    toggleDropdown(false)
+                    if cb then cb(currentOption) end
+                end)
+                
+                optionButtons[option] = optBtn
+            end
+            
+            -- Toggle dropdown function
+            local function toggleDropdown(open)
+                isOpen = open
+                local targetHeight = open and (#options * 30) or 0
+                local targetTransparency = open and 0 or 1
+                
+                for _, btn in pairs(optionButtons) do
+                    btn.Visible = open
+                end
+                
+                ts:Create(dropdownList, TweenInfo.new(0.2), {
+                    Size = UDim2.new(1, 0, 0, targetHeight),
+                    BackgroundTransparency = targetTransparency
+                }):Play()
+            end
+            
+            -- Click dropdown button to toggle
+            dropdownBtn.MouseButton1Click:Connect(function()
+                toggleDropdown(not isOpen)
+            end)
+            
+            -- Close dropdown when clicking outside
+            local closeConnection
+            closeConnection = ui.InputBegan:Connect(function(input, gameProcessed)
+                if isOpen and input.UserInputType == Enum.UserInputType.MouseButton1 and not gameProcessed then
+                    local mousePos = ui:GetMouseLocation()
+                    local dropdownAbsPos = dropdownList.AbsolutePosition
+                    local dropdownAbsSize = dropdownList.AbsoluteSize
+                    
+                    if not (mousePos.X >= dropdownAbsPos.X and mousePos.X <= dropdownAbsPos.X + dropdownAbsSize.X and
+                            mousePos.Y >= dropdownAbsPos.Y and mousePos.Y <= dropdownAbsPos.Y + dropdownAbsSize.Y) then
+                        toggleDropdown(false)
+                    end
+                end
+            end)
+            
+            -- Call callback with default
+            if default then task.defer(cb, default) end
+        end
+        
+        -- NEW: Color Picker
+        function contents:colorpicker(title, default, cb)
+            local newColorPicker = elements.ColorPickerElement or createColorPickerElement(elements)
+            if not newColorPicker then
+                newColorPicker = createColorPickerElement()
+            end
+            
+            newColorPicker.frame.lbl.Text = title
+            newColorPicker.Parent = newSect.sectioncontainer
+            
+            local colorBtn = newColorPicker.colorbtn
+            local colorDisplay = newColorPicker.colordisplay
+            local currentColor = default or Color3.fromRGB(255, 255, 255)
+            
+            colorDisplay.BackgroundColor3 = currentColor
+            
+            colorBtn.MouseEnter:Connect(function() fadeelement(colorBtn, true) end)
+            colorBtn.MouseLeave:Connect(function() fadeelement(colorBtn, false) end)
+            
+            local colorPickerFrame = newColorPicker.colorpickerframe
+            local hueSlider = newColorPicker.hueslider
+            local saturationPicker = newColorPicker.saturationpicker
+            local rgbInputs = newColorPicker.rgbinputs
+            local hexInput = newColorPicker.hexinput
+            
+            -- Hide picker initially
+            colorPickerFrame.Visible = false
+            
+            colorBtn.MouseButton1Click:Connect(function()
+                colorPickerFrame.Visible = not colorPickerFrame.Visible
+                if colorPickerFrame.Visible then
+                    updateColorPicker(currentColor)
+                end
+            end)
+            
+            local function updateColorPicker(color)
+                -- Update display
+                colorDisplay.BackgroundColor3 = color
+                currentColor = color
+                
+                -- Update RGB inputs if they exist
+                if rgbInputs then
+                    rgbInputs.r.Value = math.floor(color.R * 255)
+                    rgbInputs.g.Value = math.floor(color.G * 255)
+                    rgbInputs.b.Value = math.floor(color.B * 255)
+                end
+                
+                -- Update hex input
+                if hexInput then
+                    hexInput.Text = string.format("#%02x%02x%02x", 
+                        math.floor(color.R * 255), 
+                        math.floor(color.G * 255), 
+                        math.floor(color.B * 255))
+                end
+                
+                if cb then cb(color) end
+            end
+            
+            -- Simplified color picking (you can expand this)
+            saturationPicker.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    local connection
+                    connection = ui.InputChanged:Connect(function(moveInput)
+                        if moveInput.UserInputType == Enum.UserInputType.MouseMovement then
+                            local relativeX = math.clamp((moveInput.Position.X - saturationPicker.AbsolutePosition.X) / saturationPicker.AbsoluteSize.X, 0, 1)
+                            local relativeY = math.clamp((moveInput.Position.Y - saturationPicker.AbsolutePosition.Y) / saturationPicker.AbsoluteSize.Y, 0, 1)
+                            
+                            local hue = 0 -- Get from hue slider
+                            local color = Color3.fromHSV(hue, relativeX, 1 - relativeY)
+                            updateColorPicker(color)
+                        end
+                    end)
+                    
+                    ui.InputEnded:Connect(function(endInput)
+                        if endInput.UserInputType == Enum.UserInputType.MouseButton1 then
+                            connection:Disconnect()
+                        end
+                    end)
+                end
+            end)
+            
+            -- Call callback with default
+            if default then task.defer(cb, default) end
+        end
+        
+        -- NEW: Keybind Picker
+        function contents:keybind(title, default, cb)
+            local newKeybind = elements.KeybindElement or createKeybindElement(elements)
+            if not newKeybind then
+                newKeybind = createKeybindElement()
+            end
+            
+            newKeybind.frame.lbl.Text = title
+            newKeybind.Parent = newSect.sectioncontainer
+            
+            local keybindBtn = newKeybind.keybtn
+            local currentKey = default or Enum.KeyCode.None
+            local isListening = false
+            
+            keybindBtn.Text = currentKey.Name ~= "None" and currentKey.Name or "Click to bind"
+            
+            keybindBtn.MouseEnter:Connect(function() fadeelement(keybindBtn, true) end)
+            keybindBtn.MouseLeave:Connect(function() fadeelement(keybindBtn, false) end)
+            
+            local function startListening()
+                isListening = true
+                keybindBtn.Text = "..."
+                keybindBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+                
+                local connection
+                connection = ui.InputBegan:Connect(function(input, gameProcessed)
+                    if not gameProcessed and isListening then
+                        if input.KeyCode ~= Enum.KeyCode.Unknown then
+                            currentKey = input.KeyCode
+                            keybindBtn.Text = currentKey.Name
+                            keybindBtn.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
+                            isListening = false
+                            connection:Disconnect()
+                            if cb then cb(currentKey) end
+                        elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            -- Allow mouse buttons too
+                            currentKey = input.UserInputType
+                            keybindBtn.Text = tostring(currentKey.Name):gsub("MouseButton", "Mouse ")
+                            keybindBtn.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
+                            isListening = false
+                            connection:Disconnect()
+                            if cb then cb(currentKey) end
+                        end
+                    end
+                end)
+            end
+            
+            keybindBtn.MouseButton1Click:Connect(function()
+                if isListening then
+                    isListening = false
+                    keybindBtn.Text = currentKey.Name ~= "None" and currentKey.Name or "Click to bind"
+                    keybindBtn.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
+                else
+                    startListening()
+                end
+            end)
+        end
+        
+        -- NEW: Progress Bar
+        function contents:progressbar(title, default, max)
+            local newProgress = elements.ProgressElement or createProgressElement(elements)
+            if not newProgress then
+                newProgress = createProgressElement()
+            end
+            
+            newProgress.lbl.Text = title
+            newProgress.Parent = newSect.sectioncontainer
+            
+            local progressBar = newProgress.progressbar
+            local progressFill = newProgress.progressfill
+            local progressText = newProgress.progresstext
+            
+            local currentValue = default or 0
+            local maximum = max or 100
+            
+            local function updateProgress(value)
+                currentValue = math.clamp(value, 0, maximum)
+                local percent = currentValue / maximum
+                progressFill.Size = UDim2.new(percent, 0, 1, 0)
+                progressText.Text = string.format("%d/%d", currentValue, maximum)
+            end
+            
+            updateProgress(currentValue)
+            
+            -- Return methods to update progress
+            return {
+                update = function(value)
+                    updateProgress(value)
+                end,
+                setMax = function(newMax)
+                    maximum = newMax
+                    updateProgress(currentValue)
+                end
+            }
+        end
+        
+        -- NEW: Paragraph / Text Area
+        function contents:paragraph(title, text)
+            local newParagraph = elements.ParagraphElement or createParagraphElement(elements)
+            if not newParagraph then
+                newParagraph = createParagraphElement()
+            end
+            
+            newParagraph.title.Text = title
+            newParagraph.content.Text = text
+            newParagraph.Parent = newSect.sectioncontainer
+            
+            -- Auto-resize based on text
+            local textBounds = game:GetService("TextService"):GetTextSize(
+                text,
+                newParagraph.content.TextSize,
+                newParagraph.content.Font,
+                Vector2.new(300, math.huge)
+            )
+            newParagraph.Size = UDim2.new(1, 0, 0, textBounds.Y + 40)
+        end
+        
+        -- NEW: Separator Line
+        function contents:separator()
+            local newSeparator = elements.SeparatorElement or createSeparatorElement(elements)
+            if not newSeparator then
+                newSeparator = createSeparatorElement()
+            end
+            
+            newSeparator.Parent = newSect.sectioncontainer
+        end
+
         return contents
     end
 
     return sections
+end
+
+-- Helper functions to create UI elements if they don't exist in your assets
+function createDropdownElement()
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.BackgroundTransparency = 1
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 1, -5)
+    btn.Position = UDim2.new(0, 5, 0, 2.5)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.BackgroundTransparency = 0.8
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Text = "Dropdown"
+    lbl.Parent = btn
+    
+    local selected = Instance.new("TextLabel")
+    selected.Size = UDim2.new(0.4, 0, 1, 0)
+    selected.Position = UDim2.new(0.5, 0, 0, 0)
+    selected.BackgroundTransparency = 1
+    selected.TextColor3 = Color3.fromRGB(200, 200, 200)
+    selected.TextXAlignment = Enum.TextXAlignment.Right
+    selected.Text = ""
+    selected.Parent = btn
+    
+    local arrow = Instance.new("TextLabel")
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -20, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = Color3.fromRGB(150, 150, 150)
+    arrow.Parent = btn
+    
+    local dropdownList = Instance.new("ScrollingFrame")
+    dropdownList.Size = UDim2.new(1, -10, 0, 0)
+    dropdownList.Position = UDim2.new(0, 5, 0, 40)
+    dropdownList.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    dropdownList.BorderSizePixel = 0
+    dropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    dropdownList.ScrollBarThickness = 4
+    dropdownList.Parent = frame
+    
+    frame.btn = btn
+    frame.frame = {lbl = lbl}
+    frame.dropdownlist = dropdownList
+    frame.selected = selected
+    
+    btn.Parent = frame
+    return frame
+end
+
+function createColorPickerElement()
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.BackgroundTransparency = 1
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 1, -5)
+    btn.Position = UDim2.new(0, 5, 0, 2.5)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.BackgroundTransparency = 0.8
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.7, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Text = "Color Picker"
+    lbl.Parent = btn
+    
+    local colorDisplay = Instance.new("Frame")
+    colorDisplay.Size = UDim2.new(0, 30, 0, 20)
+    colorDisplay.Position = UDim2.new(1, -40, 0.5, -10)
+    colorDisplay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    colorDisplay.BorderSizePixel = 0
+    colorDisplay.Parent = btn
+    
+    frame.colorbtn = btn
+    frame.frame = {lbl = lbl}
+    frame.colordisplay = colorDisplay
+    frame.colorpickerframe = Instance.new("Frame")
+    frame.colorpickerframe.Size = UDim2.new(1, -10, 0, 150)
+    frame.colorpickerframe.Position = UDim2.new(0, 5, 0, 40)
+    frame.colorpickerframe.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    frame.colorpickerframe.BorderSizePixel = 0
+    frame.colorpickerframe.Visible = false
+    frame.colorpickerframe.Parent = frame
+    
+    btn.Parent = frame
+    return frame
+end
+
+function createKeybindElement()
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.BackgroundTransparency = 1
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.6, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Text = "Keybind"
+    lbl.Parent = frame
+    
+    local keybtn = Instance.new("TextButton")
+    keybtn.Size = UDim2.new(0.35, 0, 1, -10)
+    keybtn.Position = UDim2.new(0.65, 0, 0, 5)
+    keybtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    keybtn.BackgroundTransparency = 0.8
+    keybtn.BorderSizePixel = 0
+    keybtn.Text = "Click to bind"
+    keybtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    keybtn.Parent = frame
+    
+    frame.frame = {lbl = lbl}
+    frame.keybtn = keybtn
+    
+    return frame
+end
+
+function createProgressElement()
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.BackgroundTransparency = 1
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Text = "Progress"
+    lbl.Parent = frame
+    
+    local progressbar = Instance.new("Frame")
+    progressbar.Size = UDim2.new(1, -10, 0, 20)
+    progressbar.Position = UDim2.new(0, 5, 0, 25)
+    progressbar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    progressbar.BorderSizePixel = 0
+    progressbar.Parent = frame
+    
+    local progressfill = Instance.new("Frame")
+    progressfill.Size = UDim2.new(0, 0, 1, 0)
+    progressfill.BackgroundColor3 = Color3.fromRGB(74, 255, 89)
+    progressfill.BorderSizePixel = 0
+    progressfill.Parent = progressbar
+    
+    local progresstext = Instance.new("TextLabel")
+    progresstext.Size = UDim2.new(1, 0, 1, 0)
+    progresstext.BackgroundTransparency = 1
+    progresstext.TextColor3 = Color3.fromRGB(255, 255, 255)
+    progresstext.Text = "0/100"
+    progresstext.Parent = progressbar
+    
+    frame.lbl = lbl
+    frame.progressbar = progressbar
+    frame.progressfill = progressfill
+    frame.progresstext = progresstext
+    
+    return frame
+end
+
+function createParagraphElement()
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 80)
+    frame.BackgroundTransparency = 1
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 20)
+    title.BackgroundTransparency = 1
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.GothamSemibold
+    title.Text = "Title"
+    title.Parent = frame
+    
+    local content = Instance.new("TextLabel")
+    content.Size = UDim2.new(1, -10, 0, 50)
+    content.Position = UDim2.new(0, 5, 0, 25)
+    content.BackgroundTransparency = 1
+    content.TextColor3 = Color3.fromRGB(200, 200, 200)
+    content.TextXAlignment = Enum.TextXAlignment.Left
+    content.TextYAlignment = Enum.TextYAlignment.Top
+    content.TextWrapped = true
+    content.Text = ""
+    content.Parent = frame
+    
+    frame.title = title
+    frame.content = content
+    
+    return frame
+end
+
+function createSeparatorElement()
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -20, 0, 2)
+    frame.Position = UDim2.new(0, 10, 0, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    frame.BorderSizePixel = 0
+    
+    return frame
 end
 
 return module
